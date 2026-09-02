@@ -42,8 +42,10 @@ header .sub{color:var(--muted);font-size:13px}
 .prog .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
 .prog .head .l{font-size:13px;color:var(--muted)}
 .prog .head .r{font-family:'Barlow Condensed';font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
-.bar{display:flex;gap:3px;height:26px}
-.seg{position:relative;border:1.5px solid var(--line);border-radius:5px;background:var(--panel);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.bar{display:flex;gap:3px;height:34px}
+.seg{position:relative;border:1.5px solid var(--line);border-radius:5px;background:var(--panel);overflow:hidden;
+  display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;min-height:34px}
+.seg:active{transform:scale(.97)}
 .seg .lb{font-size:10.5px;color:var(--muted);position:relative;z-index:2;letter-spacing:.02em}
 .seg.ok{background:var(--spruce);border-color:var(--spruce)}
 .seg.ok .lb{color:#fff}
@@ -79,6 +81,8 @@ body.eating .clock{color:var(--spruce)}
 .meal{border-left:3px solid var(--line);padding:2px 0 2px 13px;margin-bottom:16px}
 .meal.anchor{border-left-color:var(--amber)}
 .meal.done{border-left-color:var(--spruce)}
+.meal.flash{animation:flash 1.4s ease}
+@keyframes flash{0%,60%{background:var(--night-soft)}100%{background:transparent}}
 .meal .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .meal .slot{font-size:12px;color:var(--muted)}
 .meal .name{font-family:'Barlow Condensed';font-size:20px;font-weight:600;margin:1px 0 5px}
@@ -107,6 +111,13 @@ body.eating .clock{color:var(--spruce)}
 .pfoot{padding:9px 12px;font-size:12.5px;color:var(--muted);background:var(--paper);border-top:1px solid var(--line)}
 .del[disabled]{opacity:.3;cursor:default}
 .bwarn{font-size:12.5px;color:var(--amber);background:#F9EFE4;border-radius:8px;padding:7px 10px;margin-bottom:10px}
+.phbtn{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:4px 9px;font-size:12px;color:var(--muted);cursor:pointer}
+.bphotomsg{font-size:12.5px;color:var(--night);background:var(--night-soft);border-radius:8px;padding:7px 10px;margin-bottom:10px}
+.bphotomsg.err{color:var(--amber);background:#F9EFE4}
+.bcode{border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
+.bcode .phbtn{padding:9px}
+.bcoderow{display:flex;gap:7px}
+.bcoderow .bnum{flex:1;min-width:0;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
 .bbody{padding:12px}
 .btar{font-size:12.5px;color:var(--night);background:var(--night-soft);border-radius:8px;padding:7px 10px;margin-bottom:10px}
 .brow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -404,7 +415,7 @@ diner:[
 /* Base d'aliments — valeurs pour 100 g / 100 ml, sauf u:1 (compté à l'unité).
    r = rôle pour le calcul des quantités : P protéine, S féculent, V légume, F gras, O autre
    c = rayon pour la liste de courses */
-const F=[
+const FBASE=[
  ["Blanc de poulet",165,31,"1","P"],["Escalope de dinde",135,29,"1","P"],["Poulet rôti en tranches",165,29,"1","P"],
  ["Steak haché 5%",137,21,"1","P"],["Filet mignon de porc",145,26,"1","P"],["Jambon blanc",110,20,"1","P"],
  ["Dés de jambon",130,19,"1","P"],["Cabillaud",82,18,"1","P"],["Filet de colin",80,18,"1","P"],
@@ -435,6 +446,15 @@ const F=[
  ["Noix",650,15,"3","F"],["Noisettes",630,15,"3","F"],["Olives noires",150,1,"3","F"],
  ["Avocat",240,2.5,"4","F",1],["Whey nature",380,80,"3","P"],["Lait de coco allégé",100,1,"3","F"]
 ].map(a=>({n:a[0],k:a[1],p:a[2],c:a[3],r:a[4],u:a[5]?1:0}));
+let F=FBASE.slice();
+function rebuildFoods(){ F=FBASE.concat((S.foods||[]).map(o=>({...o,own:true}))); }
+function addFood(o){
+  if(!S.foods) S.foods=[];
+  const i=F.findIndex(f=>f.n.toLowerCase()===o.n.toLowerCase());
+  if(i>=0) return i;
+  S.foods.push(o); save(); rebuildFoods();
+  return F.findIndex(f=>f.n===o.n);
+}
 
 const CATS={"0":"Ajouts perso","1":"Viandes, poissons","2":"Crémerie et œufs","3":"Épicerie","4":"Fruits et légumes","5":"Fond de placard"};
 const DAYS=["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
@@ -448,7 +468,7 @@ const OFFSET={petitdej:0,dejeuner:2,collation:4,diner:1};
 
 /* ================= état ================= */
 const DEF={open:"06:30",close:"20:00",lunch:"12:00",snack:"17:00",kcal:2000,prot:160,goal:64,
-           week:null,checked:{},weights:[],chat:[],key:"",log:{},swap:{},custom:{},hidden:{}};
+           week:null,checked:{},weights:[],chat:[],key:"",log:{},swap:{},custom:{},hidden:{},foods:[]};
 let S=load();
 function load(){try{return Object.assign({},DEF,JSON.parse(localStorage.getItem("fenetre")||"{}"))}catch(e){return Object.assign({},DEF)}}
 function save(){try{localStorage.setItem("fenetre",JSON.stringify(S))}catch(e){}}
@@ -586,7 +606,8 @@ function progHTML(dateStr){
   const totalK=m.reduce((a,x)=>a+x.meal.k,0);
   const segs=m.map(x=>{
     const st=statusOf(dateStr,x.key);
-    return `<div class="seg ${st==="ok"?"ok":st==="skip"?"skip":""}" style="flex:${x.meal.k}"><span class="lb">${x.short}</span></div>`;
+    return `<button class="seg ${st==="ok"?"ok":st==="skip"?"skip":""}" style="flex:${x.meal.k}"
+      data-seg="${x.key}" data-segd="${dateStr}"><span class="lb">${x.short}</span></button>`;
   }).join("");
   const pct=Math.min(100,Math.round(t.k/S.kcal*100));
   const isToday = dateStr===iso(new Date());
@@ -652,7 +673,7 @@ function mealHTML(x,times,dateStr,compact){
   const st=statusOf(dateStr,x.key);
   const pid=dateStr+"|"+x.key;
   const swapped=dateStr&&S.swap[dateStr]&&S.swap[dateStr][x.key]!==undefined;
-  return `<div class="meal ${st==="ok"?"done":x.med?"anchor":""}">
+  return `<div class="meal ${st==="ok"?"done":x.med?"anchor":""}" data-slot="${x.key}">
     <div class="top"><div class="slot">${x.label} · ${times[x.anchor]}</div>
     <div class="macro">${x.meal.k} kcal · ${x.meal.p} g prot.</div></div>
     <div class="name">${x.meal.n}</div>
@@ -757,10 +778,18 @@ function builderHTML(x,dateStr){
   return `<div class="picker">
     <div class="ph"><span>${builder.edit?"Modifier ce "+x.label.toLowerCase():"Composer ce "+x.label.toLowerCase()}</span>
       <span style="display:flex;gap:6px">
+        <label class="phbtn">Photo<input type="file" accept="image/*" class="bphoto" hidden></label>
+        <button class="phbtn" data-bcode="1">Code-barres</button>
         <button data-bcancel="1">Annuler</button>
       </span></div>
     <div class="bbody">
       <div class="btar">Cible du créneau : ${builder.tk} kcal · ${builder.tp} g de protéines</div>
+      ${builder.photo?`<div class="bphotomsg ${builder.photo.err?"err":""}">${builder.photo.msg}</div>`:""}
+      ${builder.code?`<div class="bcode">
+        <label class="phbtn" style="text-align:center">Scanner avec l'appareil photo<input type="file" accept="image/*" class="bscan" hidden></label>
+        <div class="bcoderow"><input class="bnum" inputmode="numeric" placeholder="ou saisis les 13 chiffres" value="${builder.code.num||""}">
+        <button class="btn sm" data-blook="1">Chercher</button></div>
+      </div>`:""}
       ${builder.dropped?`<div class="bwarn">${builder.dropped} ingrédient${builder.dropped>1?"s":""} absent${builder.dropped>1?"s":""} de la base d'aliments, non repris. Ajoute l'équivalent à la main.</div>`:""}
       <input class="bsearch bname" style="margin:0 0 10px" placeholder="Nom du repas (facultatif)" value="${(builder.name||"").replace(/"/g,"&quot;")}">
       ${builder.items.length?builder.items.map((it,i)=>{
@@ -784,7 +813,24 @@ function builderHTML(x,dateStr){
   </div>`;
 }
 
+/* Les pavés du bandeau servent de raccourci : ils amènent à la carte
+   du repas concerné dans l'onglet Repas. */
 document.addEventListener("click",e=>{
+  const sg=e.target.closest("[data-seg]");
+  if(sg){
+    const key=sg.dataset.seg, d=sg.dataset.segd;
+    const tab=$$("nav button").find(b=>b.dataset.v==="meals");
+    if($("#v-meals").classList.contains("hide")) tab.click();
+    if(d && d!=="null"){
+      const wanted=(new Date(d+"T12:00:00").getDay()+6)%7;
+      if(wanted!==selDay){selDay=wanted;openPicker=null;builder=null;renderDaybar();renderMeals();renderProg();}
+    }
+    const card=$(`#meals .meal[data-slot="${key}"]`);
+    if(card){ card.scrollIntoView({behavior:"smooth",block:"center"});
+      $$("#meals .meal").forEach(c=>c.classList.remove("flash"));
+      void card.offsetWidth; card.classList.add("flash"); }
+    return;
+  }
   const pk=e.target.closest("[data-pick]");
   if(pk){ openPicker = openPicker===pk.dataset.pick ? null : pk.dataset.pick;
           builder=null; renderMeals(); tick(); return; }
@@ -794,6 +840,10 @@ document.addEventListener("click",e=>{
   if(cp){ const[d,k]=cp.dataset.compose.split("|");
           const cur=menuForDate(d).find(z=>z.key===k);
           startBuilder(d,k,cur.meal); renderMeals(); tick(); return; }
+  const cb=e.target.closest("[data-bcode]");
+  if(cb){ builder.code=builder.code?null:{num:""}; builder.photo=null; renderMeals(); return; }
+  const bl=e.target.closest("[data-blook]");
+  if(bl){ lookupBarcode(builder.code&&builder.code.num); return; }
   const bc=e.target.closest("[data-bcancel]");
   if(bc){ builder=null; renderMeals(); tick(); return; }
   const ba=e.target.closest("[data-badd]");
@@ -845,6 +895,193 @@ document.addEventListener("click",e=>{
   renderMeals(); renderProg(); renderStats(); tick();
 });
 
+/* ---------------- reconnaissance par photo ---------------- */
+const PHOTO_SYS=`Tu analyses la photo d'une assiette ou d'un produit alimentaire.
+Réponds UNIQUEMENT par un objet JSON, sans texte autour et sans balises Markdown.
+
+Format :
+{"items":[{"nom":"Blanc de poulet","quantite":150,"unite":"g","kcal100":165,"prot100":31,"role":"P","rayon":"1"}],"note":"une phrase"}
+
+Règles :
+- "quantite" est la quantité visible sur la photo, en grammes, ou en nombre d'unités si "unite" vaut "piece".
+- "kcal100" et "prot100" sont les valeurs pour 100 g (ou pour une unité si "unite" vaut "piece").
+- Pour un féculent visible cuit, donne la quantité cuite et des valeurs pour 100 g cuits.
+- "role" : P protéine, S féculent, V légume, F matière grasse, O autre.
+- "rayon" : "1" viandes et poissons, "2" crémerie et œufs, "3" épicerie, "4" fruits et légumes, "5" huiles et condiments.
+- Si c'est l'étiquette d'un produit emballé, lis les valeurs nutritionnelles indiquées.
+- "note" signale ce qui reste incertain, en français, en une phrase.
+- N'invente pas d'aliment que tu ne vois pas.`;
+
+function shrink(file,max){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>{const img=new Image();
+      img.onload=()=>{
+        let{width:w,height:h}=img;
+        const sc=Math.min(1,max/Math.max(w,h)); w=Math.round(w*sc); h=Math.round(h*sc);
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        res(c.toDataURL("image/jpeg",0.72).split(",")[1]);
+      };
+      img.onerror=()=>rej(new Error("image illisible"));
+      img.src=r.result;};
+    r.onerror=()=>rej(new Error("lecture impossible"));
+    r.readAsDataURL(file);
+  });
+}
+
+async function analysePhoto(file){
+  if(!S.key){ builder.photo={msg:"Renseigne ta clé API dans l'onglet Coach pour utiliser la photo.",err:1};
+              renderMeals(); return; }
+  builder.photo={msg:"Analyse de la photo en cours…"}; renderMeals();
+  try{
+    const b64=await shrink(file,1024);
+    const r=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":S.key,
+               "anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1000,system:PHOTO_SYS,
+        messages:[{role:"user",content:[
+          {type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},
+          {type:"text",text:"Identifie les aliments et estime les quantités."}]}]})
+    });
+    const d=await r.json();
+    if(d.error) throw new Error(d.error.message||"erreur API");
+    let txt=(d.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("").trim();
+    txt=txt.replace(/^```(json)?/i,"").replace(/```$/,"").trim();
+    const j=JSON.parse(txt);
+    if(!j.items||!j.items.length) throw new Error("aucun aliment reconnu");
+    let added=0;
+    j.items.forEach(it=>{
+      const unit=(it.unite==="piece")?1:0;
+      const fi=addFood({n:it.nom,k:Math.round(it.kcal100)||0,p:Math.round(it.prot100*10)/10||0,
+                        c:String(it.rayon||"3"),r:it.role||"O",u:unit});
+      if(fi<0) return;
+      const ex=builder.items.find(o=>o.f===fi);
+      if(ex) ex.q=it.quantite||ex.q; else builder.items.push({f:fi,q:it.quantite||0});
+      added++;
+    });
+    const t=bTot();
+    builder.photo={msg:added+" aliment"+(added>1?"s":"")+" ajouté"+(added>1?"s":"")+" — "+t.k+" kcal, "+t.p+" g de protéines. Quantités estimées à l'œil : vérifie-les avant d'enregistrer."+(j.note?" "+j.note:"")};
+  }catch(e){
+    const m = e instanceof SyntaxError
+      ? "le modèle n'a pas renvoyé de résultat exploitable, réessaie avec une photo plus nette"
+      : e.message;
+    builder.photo={msg:"Analyse impossible : "+m+".",err:1};
+  }
+  renderMeals();
+}
+
+/* ---------------- code-barres (Open Food Facts) ---------------- */
+
+/* Déduit le rôle et le rayon à partir des valeurs et des catégories,
+   pour que le calcul automatique des quantités sache quoi en faire. */
+function guessRole(kcal,prot,fat,tags){
+  const t=(tags||[]).join(" ");
+  /* Les féculents priment sur le seuil protéique : des pâtes aux lentilles
+     titrent 25 g de protéines mais restent la source de glucides du repas. */
+  if(/pasta|pate|cereal|rice|riz|bread|pain|flour|farine|legume-sec|pulses|lentil|lentille|chickpea|pois-chiche|bean|haricot|potato|semoule|couscous|quinoa|boulgour|avoine|oat/.test(t)) return "S";
+  if(/oil|huile|butter|beurre|nuts|noix|amande|seeds|graine/.test(t)) return "F";
+  if(/meat|poultry|fish|seafood|viande|poisson|egg|oeuf|yogurt|yaourt|fromage-blanc|skyr|proteine/.test(t)) return "P";
+  if(prot>=15) return "P";
+  if(fat>=30) return "F";
+  if(kcal>=250) return "S";
+  if(kcal<=60) return "V";
+  return "O";
+}
+function guessAisle(tags){
+  const t=(tags||[]).join(" ");
+  if(/meat|poultry|fish|seafood|charcuterie|viande|poisson/.test(t)) return "1";
+  if(/dairy|cheese|yogurt|yaourt|fromage|milk|lait|egg|oeuf/.test(t)) return "2";
+  if(/fresh-vegetable|fresh-fruit|legume-frais|fruit-frais/.test(t)) return "4";
+  if(/oil|huile|sauce|condiment/.test(t)) return "5";
+  return "3";
+}
+
+async function lookupBarcode(num){
+  num=String(num||"").replace(/\D/g,"");
+  if(num.length<8){ builder.photo={msg:"Un code-barres compte au moins 8 chiffres.",err:1}; renderMeals(); return; }
+  // déjà connu : pas d'appel réseau
+  const known=F.findIndex(f=>f.code===num);
+  if(known>=0){ pushFood(known,100); builder.code=null;
+    builder.photo={msg:F[known].n+" — déjà dans ta base, ajouté."}; renderMeals(); return; }
+  builder.photo={msg:"Recherche du produit "+num+"…"}; renderMeals();
+  try{
+    const u="https://world.openfoodfacts.org/api/v2/product/"+num
+      +".json?fields=product_name,product_name_fr,brands,nutriments,categories_tags";
+    const r=await fetch(u);
+    const d=await r.json();
+    /* L'API répond 200 même quand le produit est absent : c'est status qui fait foi. */
+    if(d.status!==1||!d.product) throw new Error("produit inconnu d'Open Food Facts");
+    const pr=d.product, nu=pr.nutriments||{};
+    /* energy est en kilojoules : n'utiliser que energy-kcal. */
+    const kcal=nu["energy-kcal_100g"]??nu["energy-kcal"];
+    const prot=nu["proteins_100g"]??nu["proteins"];
+    if(kcal==null||prot==null) throw new Error("valeurs nutritionnelles absentes de la fiche");
+    const fat=nu["fat_100g"]??0;
+    const name=[(pr.product_name_fr||pr.product_name||"Produit "+num).trim(),
+                (pr.brands||"").split(",")[0].trim()].filter(Boolean).join(" — ");
+    const fi=addFood({n:name,k:Math.round(kcal),p:Math.round(prot*10)/10,
+      c:guessAisle(pr.categories_tags),r:guessRole(kcal,prot,fat,pr.categories_tags),u:0,code:num});
+    if(fi<0) throw new Error("enregistrement impossible");
+    pushFood(fi,100);
+    builder.code=null;
+    builder.photo={msg:name+" : "+Math.round(kcal)+" kcal et "+(Math.round(prot*10)/10)
+      +" g de protéines pour 100 g. Ajuste la quantité, elle est à 100 g par défaut."};
+  }catch(e){
+    builder.photo={msg:"Code "+num+" : "+e.message+". Saisis le produit à la main ou photographie l'étiquette.",err:1};
+  }
+  renderMeals();
+}
+function pushFood(fi,q){
+  const ex=builder.items.find(o=>o.f===fi);
+  if(ex) ex.q=ex.q||q; else builder.items.push({f:fi,q});
+}
+
+/* Safari ne fournit pas BarcodeDetector : on retombe alors sur la lecture
+   des chiffres par le modèle, à partir de la photo. */
+async function scanBarcode(file){
+  builder.photo={msg:"Lecture du code-barres…"}; renderMeals();
+  try{
+    if("BarcodeDetector" in window){
+      const det=new window.BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e"]});
+      const bmp=await createImageBitmap(file);
+      const found=await det.detect(bmp);
+      if(found.length) return lookupBarcode(found[0].rawValue);
+    }
+    if(!S.key) throw new Error("sans clé API, saisis les chiffres à la main");
+    const b64=await shrink(file,1400);
+    const r=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":S.key,
+               "anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:100,
+        system:"Tu lis le code-barres sur l'image. Réponds uniquement par les chiffres, sans espaces ni texte. Si aucun code-barres n'est lisible, réponds NON.",
+        messages:[{role:"user",content:[
+          {type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},
+          {type:"text",text:"Quels sont les chiffres du code-barres ?"}]}]})
+    });
+    const d=await r.json();
+    if(d.error) throw new Error(d.error.message||"erreur API");
+    const txt=(d.content||[]).filter(x=>x.type==="text").map(x=>x.text).join("").trim();
+    const num=txt.replace(/\D/g,"");
+    if(!num||num.length<8) throw new Error("code-barres illisible sur la photo");
+    return lookupBarcode(num);
+  }catch(e){
+    builder.photo={msg:"Lecture impossible : "+e.message+".",err:1};
+    renderMeals();
+  }
+}
+
+document.addEventListener("change",e=>{
+  const sc=e.target.closest(".bscan");
+  if(sc&&builder&&sc.files&&sc.files[0]){ const f=sc.files[0]; sc.value=""; scanBarcode(f); return; }
+  const f=e.target.closest(".bphoto");
+  if(!f||!builder||!f.files||!f.files[0]) return;
+  const file=f.files[0]; f.value="";
+  analysePhoto(file);
+});
+
 /* Saisie dans le compositeur : on met à jour sans reconstruire le DOM,
    sinon le champ perd le focus à chaque frappe. */
 document.addEventListener("input",e=>{
@@ -854,6 +1091,7 @@ document.addEventListener("input",e=>{
   if(qf){ builder.items[+qf.dataset.bq].q=parseFloat(qf.value.replace(",","."))||0;
           const t=bTot(), el=body.querySelector(".btot");
           if(el) el.textContent=t.k+" kcal · "+t.p+" g de protéines"; return; }
+  if(e.target.classList.contains("bnum")){ if(builder.code) builder.code.num=e.target.value; return; }
   if(e.target.classList.contains("bname")){ builder.name=e.target.value; return; }
   if(e.target.classList.contains("bfind")){
     builder.q=e.target.value;
@@ -1172,7 +1410,8 @@ renderTimes();
   el.onchange=()=>{S[k]=+el.value;save();renderProg();renderStats();};
 });
 $("#cfg-goal").value=S.goal;
-const BUILD="v7 — 1er sept.";
+rebuildFoods();
+const BUILD="v10 — 1er sept.";
 $("#ver").textContent=BUILD;
 $("#hdate").textContent=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
 renderDaybar(); renderMeals(); renderShop(); renderProg(); renderStats(); tick();
